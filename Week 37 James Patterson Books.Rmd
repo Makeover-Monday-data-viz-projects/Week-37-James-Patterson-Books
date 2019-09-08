@@ -1,0 +1,93 @@
+---
+title: "Week 37 James Patterson Books Checked Out"
+author: "Joe Rubash"
+date: "September 8, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# 01 - Load  libraries----------------------------------------------------------
+library(tidyverse)
+library(lubridate)
+
+
+# 02 - Load and save data-------------------------------------------------------
+# data URL
+file.url <- "https://query.data.world/s/a4iixd7igtgqkg5pvzcsu5smuuwzob"
+
+# function to read in data from net
+load_data_from_net <- function(file.url){
+    read.csv(file.url, 
+             header = TRUE,
+             stringsAsFactors = FALSE)
+}
+
+# once read from net save to csv in data folder
+csv.file <- "./data/James.Patterson.Books.csv"
+
+data <- if(file.exists(csv.file)) {
+         read_csv(csv.file)
+    } else{
+        load_data_from_net(file.url) %>% 
+        write_csv(., "./data/James.Patterson.Books.csv")
+    }
+
+
+# 03 - Format data--------------------------------------------------------------
+# fix variable names
+names(data) <- tolower(names(data))
+
+# change the name to the first variable to be more readable
+names(data)[names(data) == "ï..material.type"] <- "material.type"
+
+# change the following variables to factors
+data <- modify_at(.x = data,
+                  .at = c("material.type",
+                          "title",
+                          "series",
+                          "checkout.year",
+                          "checkout.month",
+                          "subjects",
+                          "publisher",
+                          "publication.year"),
+                  as.factor)
+
+# create a variable for year and month combined
+data <- data %>% 
+    mutate(year.month = paste(checkout.year, checkout.month, "1") %>% 
+               ymd(.))
+
+# perhaps create variable for the type of book... thriller, fiction, scifi etc.
+
+```
+```{r first look at data}
+# try to understand structure of data
+glimpse(data)
+
+summary(data)
+
+```
+```{r checkouts over time}
+# summarize number of checkouts by year, month and title
+sum.data <- data %>% 
+    group_by(checkout.year,
+             checkout.month,
+             title,
+             year.month) %>% 
+    summarise(num.checkouts = sum(checkouts)) %>% 
+    ungroup() %>% 
+    group_by(title) %>% 
+    top_n(x = title,
+          n = 5,
+          wt = num.checkouts)
+
+ggplot(data = sum.data,
+       aes(x = checkout.month,
+           y = num.checkouts))+
+    geom_boxplot()+
+    facet_wrap(~checkout.year, 
+               scales = "free_x")
+```
+
