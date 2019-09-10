@@ -15,6 +15,7 @@ library(tidyverse)
 library(lubridate)
 library(ggthemes)
 library(wesanderson)
+library(scales)
 
 
 
@@ -146,39 +147,53 @@ top.10.data <- data %>%
 
 
 # 4. Determine max number of checkouts for any given month for top 10 titles
+top.10.data.max <- top.10.data %>% 
+    group_by(title) %>% 
+    summarise(max.checkouts = max(num.checkouts))
+
+# 5. merge top checkouts by title with release.top.10
+top.10.labels <- merge(release.top.10, top.10.data.max) %>% 
+    arrange(first.checkout)
+
+
 
 # create plot with top ten books
 windows()
 ggplot(data = top.10.data,
        aes(x = year.month,
            y = num.checkouts,
-           fill = fct_relevel(title, 
-                            c(as.character(release.top.10$title))),
+           fill = as.integer(fct_relevel(title, 
+                            c(as.character(top.10.labels$title)))),
            group = fct_relevel(title, 
-                            c(as.character(release.top.10$title)))))+
+                            c(as.character(top.10.labels$title)))))+
     geom_area()+
     facet_grid(fct_relevel(title, 
-                            c(as.character(release.top.10$title))) ~ .)+
-    geom_text(data = release.top.10,
+                            c(as.character(top.10.labels$title))) ~ .)+
+    geom_text(data = top.10.labels,
         aes(x = first.checkout,
-                  y = 110,
-                  color = fct_relevel(title, 
-                            c(as.character(title))),
+                  y = max.checkouts + 25,
+                  color = as.integer(fct_relevel(title, 
+                            c(as.character(title)))),
                   label = fct_relevel(title, 
                             c(as.character(title))),
         hjust = 0))+
     theme_tufte()+
     theme(strip.text.y = element_blank(),
-          legend.position = "none")+
-    coord_cartesian(ylim = c(0, 120))+
+          legend.position = "none",
+          title = element_text(size = 16),
+          text = element_text(size = 12))+
+    coord_cartesian(ylim = c(0, max(top.10.labels$max.checkouts) + 40))+
     scale_x_date(date_breaks = "1 years",
                  date_labels = "%Y")+
     labs(x = "",
          y = "Number of Books Checked Out / Month",
-         title = "Top 10 James Patterson Books Checked Out at the Seattle Public Library")+
-    scale_color_manual(values = wes_palette(10, name = "IsleofDogs1", type = "continuous"))+
-    scale_fill_manual(values = wes_palette(10, name = "IsleofDogs1", type = "continuous"))
+         title = "Top 10 Most Checked Out James Patterson Books from The Seattle Public Library",
+         subtitle = "Number of times each title was checked out each month peaked just after release but then slowly died off with time")+
+    scale_fill_gradient(low = "#CC0000", high = "#999999")+
+    scale_color_gradient(low = "#CC0000", high = "#999999")
     
-ggsave("./output/top.10.James.Patterson.books.png")
+ggsave("./output/top.10.James.Patterson.books.png",
+       width = 10,
+       height = 6)
 ```
 
