@@ -3,6 +3,8 @@ title: "Week 37 James Patterson Books Checked Out"
 author: "Joe Rubash"
 date: "September 8, 2019"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -11,6 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 # 01 - Load  libraries----------------------------------------------------------
 library(tidyverse)
 library(lubridate)
+library(ggthemes)
+library(wesanderson)
+
 
 
 # 02 - Load and save data-------------------------------------------------------
@@ -78,16 +83,102 @@ sum.data <- data %>%
              year.month) %>% 
     summarise(num.checkouts = sum(checkouts)) %>% 
     ungroup() %>% 
-    group_by(title) %>% 
-    top_n(x = title,
-          n = 5,
-          wt = num.checkouts)
+    top_n(20)
 
 ggplot(data = sum.data,
        aes(x = checkout.month,
-           y = num.checkouts))+
-    geom_boxplot()+
+           y = num.checkouts,
+           color = title,
+           group = title))+
+    geom_line()+
+    geom_point()+
     facet_wrap(~checkout.year, 
                scales = "free_x")
+```
+```{r titles ordered by number of checkout}
+# sort title by number of checkouts for each year 
+title.data <- data %>% 
+    group_by(checkout.year,
+             title) %>%
+    summarise(num.checkout = sum(checkouts)) %>% 
+    arrange(desc(num.checkout),
+            .by_group = TRUE) %>% 
+    mutate(title.index = row_number()) %>% 
+    top_n(5)
+
+# create bar plot
+ggplot(data = title.data,
+       aes(x = title.index,
+           y = num.checkout))+
+    geom_bar(stat = "identity")+
+    facet_wrap(~ checkout.year, 
+               scales = "free_x")+
+    scale_x_continuous(breaks = title.data$title.index,
+                       labels = title.data$title)
+
+    
+```
+```{r top 10 James Patterson books}
+# 1. determine top ten books by number of checkouts
+top.10 <- data %>% 
+    group_by(title) %>% 
+    summarise(num.checkouts = sum(checkouts)) %>% 
+    arrange(desc(num.checkouts)) %>%
+    top_n(10)
+
+# 2. find release dates for top ten books
+release.top.10 <- data %>% 
+    filter(title %in% c(as.character(top.10$title))) %>% 
+    group_by(title) %>% 
+    summarise(first.checkout = min(year.month)) %>% 
+    arrange(first.checkout)
+
+# 3. create data set filtered by top.10
+top.10.data <- data %>% 
+    group_by(checkout.year, # summarize data by year and month
+             checkout.month,
+             year.month,
+             title) %>% 
+    summarise(num.checkouts = sum(checkouts)) %>% 
+    filter(title %in% c(as.character(top.10$title))) %>% # keep only top ten titles
+    mutate(title = fct_relevel(title,
+                               c(as.character(release.top.10$title)))) # order titles
+
+
+# 4. Determine max number of checkouts for any given month for top 10 titles
+
+# create plot with top ten books
+windows()
+ggplot(data = top.10.data,
+       aes(x = year.month,
+           y = num.checkouts,
+           fill = fct_relevel(title, 
+                            c(as.character(release.top.10$title))),
+           group = fct_relevel(title, 
+                            c(as.character(release.top.10$title)))))+
+    geom_area()+
+    facet_grid(fct_relevel(title, 
+                            c(as.character(release.top.10$title))) ~ .)+
+    geom_text(data = release.top.10,
+        aes(x = first.checkout,
+                  y = 110,
+                  color = fct_relevel(title, 
+                            c(as.character(title))),
+                  label = fct_relevel(title, 
+                            c(as.character(title))),
+        hjust = 0))+
+    theme_tufte()+
+    theme(strip.text.y = element_blank(),
+          legend.position = "none")+
+    coord_cartesian(ylim = c(0, 120))+
+    scale_x_date(date_breaks = "1 years",
+                 date_labels = "%Y")+
+    labs(x = "",
+         y = "Number of Books Checked Out / Month",
+         title = "Top 10 James Patterson Books Checked Out at the Seattle Public Library")+
+    scale_color_manual(values = wes_palette(10, name = "IsleofDogs1", type = "continuous"))+
+    scale_fill_manual(values = wes_palette(10, name = "IsleofDogs1", type = "continuous"))
+    
+ggsave("./output/top.10.James.Patterson.books.png")
 ```
 
